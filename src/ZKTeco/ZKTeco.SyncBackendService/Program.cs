@@ -24,7 +24,7 @@ namespace ZKTeco.SyncBackendService
                     x.WhenStopped((s, h) => s.Stop(h));
                 });
 
-                cfg.RunAsLocalSystem();
+                cfg.RunAsLocalService();
                 cfg.StartAutomatically();
 
                 cfg.SetServiceName("ZKTeco-SyncBackendService");

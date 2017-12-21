@@ -2,6 +2,7 @@
 .vs/
 **/bin/Debug/
 **/bin/Release/
+**/bin/
 **/obj/
 packages/
 
