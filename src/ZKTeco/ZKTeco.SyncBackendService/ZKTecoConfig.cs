@@ -74,7 +74,9 @@ namespace ZKTeco.SyncBackendService
         }
 
         private static string _projectCode;
-
+        /// <summary>
+        /// Project code which the devices belong to
+        /// </summary>
         public static string ProjectCode
         {
             get
@@ -84,6 +86,24 @@ namespace ZKTeco.SyncBackendService
                     _projectCode = GetStringValue("ProjectCode");
                 }
                 return _projectCode;
+            }
+        }
+
+
+        private static string _appRootFolder;
+        /// <summary>
+        /// The service program's root folder.
+        /// </summary>
+        public static string AppRootFolder
+        {
+            get
+            {
+                if (_appRootFolder == null)
+                {
+                    _appRootFolder = GetStringValue("AppRootFolder",
+                        AppDomain.CurrentDomain.BaseDirectory);
+                }
+                return _appRootFolder;
             }
         }
 

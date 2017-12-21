@@ -1,4 +1,5 @@
 ﻿using Serilog;
+using System.IO;
 using Topshelf;
 
 namespace ZKTeco.SyncBackendService
@@ -6,14 +7,14 @@ namespace ZKTeco.SyncBackendService
     class Program
     {
         static void Main(string[] args)
-        {       
-            HostFactory.Run(cfg =>
-            {
-                var logger = new LoggerConfiguration()
+        {
+            var logger = new LoggerConfiguration()
                 .ReadFrom.AppSettings()
-                .WriteTo.RollingFile(@".\logs\info{Date}.log", retainedFileCountLimit: 10)                
+                .WriteTo.RollingFile(Path.Combine(ZKTecoConfig.AppRootFolder, "logs", "info{Date}.log"), retainedFileCountLimit: 10)
                 .CreateLogger();
 
+            HostFactory.Run(cfg =>
+            {             
                 cfg.UseSerilog(logger);
                 
                 cfg.Service<ZKTecoServiceControl>(x =>
