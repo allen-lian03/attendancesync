@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ZKTeco", "ZKTeco", "{B22A2C77-69AA-490D-9957-23EA702B4CD1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZKTeco.Configuration", "src\ZKTeco\ZKTeco.Configuration\ZKTeco.Configuration.csproj", "{257A553C-E14A-4F6A-BF05-DBB2274F8174}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZKTeco.SyncBackendService", "src\ZKTeco\ZKTeco.SyncBackendService\ZKTeco.SyncBackendService.csproj", "{BD91D9EE-BE7F-4DBD-B089-1B7B532DAEF4}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{257A553C-E14A-4F6A-BF05-DBB2274F8174}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{257A553C-E14A-4F6A-BF05-DBB2274F8174}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{257A553C-E14A-4F6A-BF05-DBB2274F8174}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{257A553C-E14A-4F6A-BF05-DBB2274F8174}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BD91D9EE-BE7F-4DBD-B089-1B7B532DAEF4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BD91D9EE-BE7F-4DBD-B089-1B7B532DAEF4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BD91D9EE-BE7F-4DBD-B089-1B7B532DAEF4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BD91D9EE-BE7F-4DBD-B089-1B7B532DAEF4}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{257A553C-E14A-4F6A-BF05-DBB2274F8174} = {B22A2C77-69AA-490D-9957-23EA702B4CD1}
+		{BD91D9EE-BE7F-4DBD-B089-1B7B532DAEF4} = {B22A2C77-69AA-490D-9957-23EA702B4CD1}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,9 @@
+# folders
+.vs/
+**/bin/Debug/
+**/bin/Release/
+**/obj/
+packages/
+
+# file type
+*.suo
