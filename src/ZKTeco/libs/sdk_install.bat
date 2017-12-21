@@ -1,19 +1,27 @@
 @echo off
-REM set bin folder and current folder
-set BinFolder=%1
-set CurFolder=%~dp0
+REM set x86/x64
+set Platform=%1
+set CurDir=%~dp0
 
-if not "%BinFolder%"=="" goto run 
-else goto err
+if [%Platform%]==[] goto runx86 
+if [%Platform%]==[x86] goto runx86 
+if [%Platform%]==[x64] goto runx64
 
-:run
-copy "%CurFolder%"\*.dll "%BinFolder%"\
-regsvr32 "%CurFolder%zkemkeeper.dll"
+goto err
+
+:runx86
+copy "%CurDir%x86\*.dll" %windir%\syswow64\
+%windir%\syswow64\regsvr32.exe %windir%\syswow64\zkemkeeper.dll
+goto end
+
+:runx64
+copy "%CurDir%x64\*.dll" %windir%\system32\
+%windir%\system32\regsvr32.exe %windir%\system32\zkemkeeper.dll
 goto end
 
 :err
-echo Missing bin folder, input bin path please.
-goto end
+echo Not supported argument value.
 
 :end
 echo run complete.
+
