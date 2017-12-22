@@ -11,12 +11,12 @@ goto err
 
 :runx86
 copy "%CurDir%x86\*.dll" %windir%\syswow64\
-%windir%\syswow64\regsvr32.exe %windir%\syswow64\zkemkeeper.dll
+%windir%\syswow64\regsvr32.exe /i /s %windir%\syswow64\zkemkeeper.dll
 goto end
 
 :runx64
 copy "%CurDir%x64\*.dll" %windir%\system32\
-%windir%\system32\regsvr32.exe %windir%\system32\zkemkeeper.dll
+%windir%\system32\regsvr32.exe /i /s %windir%\system32\zkemkeeper.dll
 goto end
 
 :err

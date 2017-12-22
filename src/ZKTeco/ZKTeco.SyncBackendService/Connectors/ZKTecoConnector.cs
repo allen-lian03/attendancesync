@@ -5,7 +5,7 @@ using ZKTeco.SyncBackendService.Models;
 
 namespace ZKTeco.SyncBackendService.Connectors
 {
-    internal class ZKTecoConnector : ILoggable
+    internal class ZKTecoConnector : ServiceBase
     {
         /// <summary>
         /// If failing to connect to the device, 
@@ -26,8 +26,6 @@ namespace ZKTeco.SyncBackendService.Connectors
             _signal = new ManualResetEvent(false);
             Logger = HostLogger.Get<ZKTecoConnector>();
         }
-
-        public LogWriter Logger { private get; set; }
 
         public void Start()
         {
@@ -133,14 +131,14 @@ namespace ZKTeco.SyncBackendService.Connectors
         private void OnAttTransactionEx(string enrollNumber, int isInValid, int attState, int verifyMethod, 
             int year, int month, int day, int hour, int minute, int second, int workCode)
         {
-            if (isInValid > 0)
-            {
-                // The current user doesn't pass the verification.
-                return;
-            }
-
-            
-
+            //if (isInValid > 0)
+            //{
+            //    // The current user doesn't pass the verification.
+            //    return;
+            //}
+            Logger.InfoFormat("OnAttTransactionEx:[@AttendanceLog], IsInValid[{IsInValid}].", 
+                new AttendanceLog(enrollNumber, (AttendanceState)attState, (VerificationMode)verifyMethod, year, month, day, hour, minute, second, workCode),
+                isInValid);
         }
 
         /// <summary>

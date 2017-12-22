@@ -2,41 +2,72 @@
 using System.Data.SQLite;
 using System.IO;
 using Topshelf.Logging;
+using ZKTeco.SyncBackendService.Bases;
+using ZKTeco.SyncBackendService.Models;
 
 namespace ZKTeco.SyncBackendService.Connectors
 {
-    internal class SqliteConnector
+    internal class SqliteConnector : ServiceBase
     {
         const string SYNCDB = "syncdb.sqlite";
 
-        private string _dbPath;
+        private SQLiteConnectionStringBuilder _dbBuilder;
 
-        private LogWriter _logger;
+        private static string _dbPath;
+        /// <summary>
+        /// Database path
+        /// </summary>
+        private static string DbPath
+        {
+            get
+            {
+                if (_dbPath == null)
+                {
+                    _dbPath = Path.Combine(ZKTecoConfig.AppRootFolder, "data", SYNCDB);
+                }
+                return _dbPath;
+            }
+        }
 
         public SqliteConnector()
         {
-            _logger = HostLogger.Get<SqliteConnector>();
-            _dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", SYNCDB);
-        }
-
-        public void Open()
-        {
-
-        }
-        
-        public void InstallSyncDatabase()
-        {
-            if (!File.Exists(_dbPath))
+            Logger = HostLogger.Get<SqliteConnector>();
+            _dbBuilder = new SQLiteConnectionStringBuilder
             {
-                SQLiteConnection.CreateFile(_dbPath);
-            }
-
-            var builder = new SQLiteConnectionStringBuilder
-            {
-                DataSource = _dbPath,
+                DataSource = DbPath,
                 Version = 3
-            };  
-            var connection = new SQLiteConnection(builder.ConnectionString);
+            };
+        }
+
+        public void InsertAttendanceLog(AttendanceLog model)
+        {
+            var connection = new SQLiteConnection(_dbBuilder.ConnectionString);
+            try
+            {
+                connection.Open();
+            }
+            catch (SQLiteException ex)
+            {
+
+            }
+        }
+
+        public static void InstallSyncDatabase()
+        {
+            if (!File.Exists(DbPath))
+            {
+                var dir = Path.GetDirectoryName(DbPath);
+                if (!Directory.Exists(dir))
+                {
+                    Directory.CreateDirectory(dir);
+                }
+                SQLiteConnection.CreateFile(DbPath);
+            }            
+        } 
+        
+        public void CheckConnection()
+        {            
+            var connection = new SQLiteConnection(_dbBuilder.ConnectionString);
             try
             {
                 connection.Open();
@@ -44,7 +75,7 @@ namespace ZKTeco.SyncBackendService.Connectors
             }
             catch (SQLiteException ex)
             {
-                _logger.ErrorFormat("connection Open error: {@Error}", ex);
+                Logger.ErrorFormat("connection Open error: {@Error}", ex);
                 throw;
             }
             finally
