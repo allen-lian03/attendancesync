@@ -19,7 +19,7 @@ namespace ZKTeco.SyncBackendService
             {
                 if (_ips == null)
                 {
-                    var addresses = GetStringValue("DeviceIPs").Split(';');
+                    var addresses = GetStringValue("DeviceIPs").Trim(';').Split(';');                    
                     _ips = new IPEndPoint[addresses.Length];
                     for (var i = 0; i < addresses.Length; i++)
                     {
