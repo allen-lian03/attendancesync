@@ -1,5 +1,8 @@
-﻿using System.Net;
+﻿using System.Diagnostics;
+using System.Net;
 using System.Threading;
+using System.Timers;
+using Topshelf.Logging;
 using zkemkeeper;
 
 namespace ZKTeco.SyncBackendService.Models
@@ -11,13 +14,33 @@ namespace ZKTeco.SyncBackendService.Models
         /// </summary>
         private int _connected = 0;
 
+        /// <summary>
+        /// Timer is running?
+        /// 0: no, 1: yes.
+        /// </summary>
+        private int _running = 0;
+
+        /// <summary>
+        /// Log Writer
+        /// </summary>
+        private LogWriter _logger;
+
+        /// <summary>
+        /// Grab logs from device periodically
+        /// </summary>
+        private System.Timers.Timer _timer;
+
         public AxDeviceWrapper(CZKEMClass axCZKEM, IPEndPoint ip)
         {
             Device = axCZKEM;
             IP = ip.Address.ToString();
             Port = ip.Port;
-        }
 
+            _logger = HostLogger.Get<AxDeviceWrapper>();
+            _timer = new System.Timers.Timer(2000);
+            _timer.Elapsed += OnElapsed;
+        }
+        
         public CZKEMClass Device { get; private set; }
 
         public string IP { get; private set; }
@@ -39,25 +62,58 @@ namespace ZKTeco.SyncBackendService.Models
 
         public void Disconnect()
         {
+            _timer.Stop();
+            _timer.Elapsed -= OnElapsed;
+
             Interlocked.CompareExchange(ref _connected, 0, 1);
-            Device.Disconnect();
+            Device.Disconnect();        
         }
 
         public void StartRealTimeLogs()
         {
-            ThreadPool.QueueUserWorkItem(_ =>
+            _timer.Start();          
+        }
+
+        private void OnElapsed(object sender, ElapsedEventArgs e)
+        {
+            if (Interlocked.CompareExchange(ref _running, 1, 0) == 1)
             {
-                if (Device.ReadRTLog(MachineNumber))
+                // running.
+                _logger.InfoFormat("OnElapsed is running under thread({id}).", Thread.CurrentThread.ManagedThreadId);
+                return;
+            }
+
+            var target = (System.Timers.Timer)sender;
+            if (!target.Enabled)
+            {
+                _logger.Info("Device timer stops.");
+                return;
+            }
+
+            if (_connected == 0)
+            {
+                _logger.Info("Device connection will disconnect...");
+                return;
+            }
+
+            _logger.InfoFormat("OnElapsed({id}) starts...", Thread.CurrentThread.ManagedThreadId);
+
+            var watch = new Stopwatch();
+            watch.Start();
+            if (Device.ReadRTLog(MachineNumber))
+            {
+                _logger.Info("Device.ReadRTLog");
+                while (Device.GetRTLog(MachineNumber))
                 {
-                    while (Device.GetRTLog(MachineNumber))
-                    {
-                        if (_connected == 0)
-                        {
-                            break;
-                        }
-                    }
+                    ;                 
                 }
-            });            
+                _logger.Info("Device.GetRTLog");
+            }
+            watch.Stop();
+            _logger.InfoFormat("Stopwatch:{ms}.", watch.ElapsedMilliseconds);
+            _logger.InfoFormat("OnElapsed({id}) ends.", Thread.CurrentThread.ManagedThreadId);
+
+            Interlocked.CompareExchange(ref _running, 0, 1);
         }
     }
 }

@@ -136,9 +136,9 @@ namespace ZKTeco.SyncBackendService.Connectors
             //    // The current user doesn't pass the verification.
             //    return;
             //}
-            Logger.InfoFormat("OnAttTransactionEx:[@AttendanceLog], IsInValid[{IsInValid}].", 
+            Logger.InfoFormat("OnAttTransactionEx:[{@AttendanceLog}], IsInValid[{IsInValid}], AttState[{AttState}], VerifyMethod[{VerifyMethod}].", 
                 new AttendanceLog(enrollNumber, (AttendanceState)attState, (VerificationMode)verifyMethod, year, month, day, hour, minute, second, workCode),
-                isInValid);
+                isInValid, attState, verifyMethod);
         }
 
         /// <summary>
