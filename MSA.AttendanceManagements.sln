@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZKTeco.Configuration", "src
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZKTeco.SyncBackendService", "src\ZKTeco\ZKTeco.SyncBackendService\ZKTeco.SyncBackendService.csproj", "{BD91D9EE-BE7F-4DBD-B089-1B7B532DAEF4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZKTeco.Fixtures", "src\ZKTeco\ZKTeco.Fixtures\ZKTeco.Fixtures.csproj", "{9958A440-D251-4812-8BD1-139F3CF69857}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -43,6 +45,18 @@ Global
 		{BD91D9EE-BE7F-4DBD-B089-1B7B532DAEF4}.Release|x64.Build.0 = Release|x64
 		{BD91D9EE-BE7F-4DBD-B089-1B7B532DAEF4}.Release|x86.ActiveCfg = Release|x86
 		{BD91D9EE-BE7F-4DBD-B089-1B7B532DAEF4}.Release|x86.Build.0 = Release|x86
+		{9958A440-D251-4812-8BD1-139F3CF69857}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9958A440-D251-4812-8BD1-139F3CF69857}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9958A440-D251-4812-8BD1-139F3CF69857}.Debug|x64.ActiveCfg = Debug|x64
+		{9958A440-D251-4812-8BD1-139F3CF69857}.Debug|x64.Build.0 = Debug|x64
+		{9958A440-D251-4812-8BD1-139F3CF69857}.Debug|x86.ActiveCfg = Debug|x86
+		{9958A440-D251-4812-8BD1-139F3CF69857}.Debug|x86.Build.0 = Debug|x86
+		{9958A440-D251-4812-8BD1-139F3CF69857}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9958A440-D251-4812-8BD1-139F3CF69857}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9958A440-D251-4812-8BD1-139F3CF69857}.Release|x64.ActiveCfg = Release|Any CPU
+		{9958A440-D251-4812-8BD1-139F3CF69857}.Release|x64.Build.0 = Release|Any CPU
+		{9958A440-D251-4812-8BD1-139F3CF69857}.Release|x86.ActiveCfg = Release|Any CPU
+		{9958A440-D251-4812-8BD1-139F3CF69857}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -50,5 +64,6 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{257A553C-E14A-4F6A-BF05-DBB2274F8174} = {B22A2C77-69AA-490D-9957-23EA702B4CD1}
 		{BD91D9EE-BE7F-4DBD-B089-1B7B532DAEF4} = {B22A2C77-69AA-490D-9957-23EA702B4CD1}
+		{9958A440-D251-4812-8BD1-139F3CF69857} = {B22A2C77-69AA-490D-9957-23EA702B4CD1}
 	EndGlobalSection
 EndGlobal

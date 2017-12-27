@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using System.Diagnostics;
+using System.Threading;
 using Topshelf.Logging;
 using ZKTeco.SyncBackendService.Bases;
 using ZKTeco.SyncBackendService.Models;
@@ -20,28 +21,32 @@ namespace ZKTeco.SyncBackendService.Connectors
 
         private ManualResetEvent _signal;
 
-        public ZKTecoConnector(AxDeviceWrapper device)
+        private SqliteConnector _db;
+
+        private Stopwatch _watch;
+
+        public ZKTecoConnector(AxDeviceWrapper device, SqliteConnector connector)
         {
             _device = device;
+            _db = connector;
+
             _signal = new ManualResetEvent(false);
+            _watch = new Stopwatch();
             Logger = HostLogger.Get<ZKTecoConnector>();
         }
 
         public void Start()
         {
-            ThreadPool.QueueUserWorkItem(_ =>
+            Logger.Info("ZKTecoConnector.Start method runs.");
+            if (Connect())
             {
-                Logger.Info("ZKTecoConnector.Start method runs.");
-                if (Connect())
-                {
-                    Logger.Info("ZKTecoConnector.Connect method is ok.");
-                    RegisterEvents();
-                    Logger.Info("ZKTecoConnector.RegisterEvents method is ok.");
-                }
-
-                _signal.WaitOne();
-                Logger.Info("ZKTecoConnector.Start method ends.");
-            });           
+                Logger.Info("ZKTecoConnector.Connect method is ok.");
+                RegisterEvents();
+                Logger.Info("ZKTecoConnector.RegisterEvents method is ok.");
+            }
+            Logger.Info("ZKTecoConnector.Connect returns.");
+            _signal.WaitOne();
+            Logger.Info("ZKTecoConnector.Start method ends.");
         }
 
         public void Stop()
@@ -49,27 +54,30 @@ namespace ZKTeco.SyncBackendService.Connectors
             Logger.Info("ZKTecoConnector.Stop starts...");
             _signal.Set();
             _device.Disconnect();
+            _db.Dispose();
             UnregisterEvents();
             Logger.Info("ZKTecoConnector.Stop ends.");
         }
 
         private bool Connect()
         {
+            Logger.Info("ZKTecoConnector.Connect starts...");
             while (!_device.Connnect())
             {
                 if (_retryTimes > ZKTecoConfig.RetryTimes)
                 {
                     int errorCode = 0;
                     _device.Device.GetLastError(ref errorCode);
-                    throw new System.Exception(string.Format("Unable to connect the device({0}:{1}), ErrorCode({2})",
-                        _device.IP, _device.Port, errorCode));
+                    Logger.ErrorFormat("Unable to connect the device({0}:{1}), ErrorCode({2})",
+                        _device.IP, _device.Port, errorCode);
+                    return false;
                 }
 
                 Thread.Sleep(5000);
                 _retryTimes++;
                 Logger.ErrorFormat("Fail to connect to the device {Times} times.", _retryTimes);
             }
-
+            Logger.Info("ZKTecoConnector.Connect ends.");
             return true;
         }
 
@@ -136,9 +144,17 @@ namespace ZKTeco.SyncBackendService.Connectors
             //    // The current user doesn't pass the verification.
             //    return;
             //}
-            Logger.InfoFormat("OnAttTransactionEx:[{@AttendanceLog}], IsInValid[{IsInValid}], AttState[{AttState}], VerifyMethod[{VerifyMethod}].", 
-                new AttendanceLog(enrollNumber, (AttendanceState)attState, (VerificationMode)verifyMethod, year, month, day, hour, minute, second, workCode),
-                isInValid, attState, verifyMethod);
+
+            //_watch.Restart();
+            var log = new AttendanceLog(enrollNumber,
+                attState, verifyMethod,
+                year, month, day, hour, minute, second,
+                workCode, _device.MachineNumber);
+            //_db.Enqueue(log);            
+            //_watch.Stop();
+
+            Logger.InfoFormat("Time:{time}, OnAttTransactionEx:[{@AttendanceLog}], IsInValid[{IsInValid}].",
+                _watch.ElapsedMilliseconds, log, isInValid);
         }
 
         /// <summary>

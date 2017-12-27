@@ -2,7 +2,7 @@
 
 namespace ZKTeco.SyncBackendService.Bases
 {
-    internal class ServiceBase
+    public class ServiceBase
     {
         protected LogWriter Logger { get; set; }
     }

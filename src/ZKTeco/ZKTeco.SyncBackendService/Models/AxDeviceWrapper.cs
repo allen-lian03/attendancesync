@@ -1,12 +1,13 @@
 ﻿using System.Diagnostics;
 using System.Net;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Timers;
 using Topshelf.Logging;
 using zkemkeeper;
 
 namespace ZKTeco.SyncBackendService.Models
-{
+{    
     internal class AxDeviceWrapper
     {
         /// <summary>
@@ -49,9 +50,17 @@ namespace ZKTeco.SyncBackendService.Models
 
         public int MachineNumber { get { return 1; } }
 
+        [HandleProcessCorruptedStateExceptions]
         public bool Connnect()
         {
-            return Device.Connect_Net(IP, Port);
+            try
+            {
+                return Device.Connect_Net(IP, Port);
+            }
+            catch
+            {
+                return false;
+            }            
         }
 
         public bool RegisterAllEvents()
@@ -96,6 +105,7 @@ namespace ZKTeco.SyncBackendService.Models
                 return;
             }
 
+            _timer.Stop();
             _logger.InfoFormat("OnElapsed({id}) starts...", Thread.CurrentThread.ManagedThreadId);
 
             var watch = new Stopwatch();
@@ -110,10 +120,13 @@ namespace ZKTeco.SyncBackendService.Models
                 _logger.Info("Device.GetRTLog");
             }
             watch.Stop();
+
             _logger.InfoFormat("Stopwatch:{ms}.", watch.ElapsedMilliseconds);
             _logger.InfoFormat("OnElapsed({id}) ends.", Thread.CurrentThread.ManagedThreadId);
 
             Interlocked.CompareExchange(ref _running, 0, 1);
+
+            _timer.Start();
         }
     }
 }

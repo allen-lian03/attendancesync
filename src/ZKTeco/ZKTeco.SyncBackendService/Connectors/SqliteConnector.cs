@@ -1,81 +1,161 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Data.SQLite;
 using System.IO;
 using Topshelf.Logging;
 using ZKTeco.SyncBackendService.Bases;
+using ZKTeco.SyncBackendService.Events;
 using ZKTeco.SyncBackendService.Models;
 
 namespace ZKTeco.SyncBackendService.Connectors
 {
-    internal class SqliteConnector : ServiceBase
+    public class SqliteConnector : ServiceBase
     {
         const string SYNCDB = "syncdb.sqlite";
 
-        private SQLiteConnectionStringBuilder _dbBuilder;
+        private static SQLiteConnectionStringBuilder _builder;
 
-        private static string _dbPath;
-        /// <summary>
-        /// Database path
-        /// </summary>
-        private static string DbPath
-        {
-            get
-            {
-                if (_dbPath == null)
-                {
-                    _dbPath = Path.Combine(ZKTecoConfig.AppRootFolder, "data", SYNCDB);
-                }
-                return _dbPath;
-            }
-        }
+        private SQLiteConnection _connection;
 
         public SqliteConnector()
         {
-            Logger = HostLogger.Get<SqliteConnector>();
-            _dbBuilder = new SQLiteConnectionStringBuilder
-            {
-                DataSource = DbPath,
-                Version = 3
-            };
+            InitDbBuilder();
+            _connection = new SQLiteConnection(_builder.ConnectionString);
+
+            Logger = HostLogger.Get<SqliteConnector>();           
         }
 
-        public void InsertAttendanceLog(AttendanceLog model)
+        public void Enqueue(AttendanceLog model)
         {
-            var connection = new SQLiteConnection(_dbBuilder.ConnectionString);
+            var message = JsonConvert.SerializeObject(model);
             try
             {
-                connection.Open();
-            }
-            catch (SQLiteException ex)
-            {
+                if (_connection.State == System.Data.ConnectionState.Closed)
+                {
+                    _connection.Open();
+                }
 
+                var command = new SQLiteCommand(_connection);
+                command.CommandText = "INSERT INTO queue(refer_id, message) VALUES(@refer_id, @message);";
+                command.Parameters.Add(new SQLiteParameter("@refer_id", model.Id));
+                command.Parameters.Add(new SQLiteParameter("@message", message));
+                command.ExecuteNonQuery();
             }
+            catch (SQLiteException se)
+            {
+                Logger.ErrorFormat("Enqueue error:{@ex}", se);
+                throw;
+            }
+
+            EventHub.Instance.PublishAsync(new EventMessage(EventType.SyncWeb, model.Id, message));
         }
+
+        public void InsertAttendanceLog(AttendanceLog model, bool isSync)
+        {
+            try
+            {
+                if (_connection.State == System.Data.ConnectionState.Closed)
+                {
+                    _connection.Open();
+                }
+                var command = new SQLiteCommand(_connection);
+                command.CommandText = "INSERT INTO attendance_logs(id,machine_id,enroll_number,project_id,log_date,mode,state,work_code,sync) " +
+                    "VALUES(@id, @machine_id, @enroll_number, @project_id, @log_date, @mode, @state, @work_code, @sync);";
+                command.Parameters.Add(new SQLiteParameter("@id", System.Data.DbType.Int64) { Value=model.Id });
+                command.Parameters.Add(new SQLiteParameter("@machine_id", System.Data.DbType.Int32) { Value = model.MachineId });
+                command.Parameters.Add(new SQLiteParameter("@enroll_number", System.Data.DbType.String) { Value = model.UserId });
+                command.Parameters.Add(new SQLiteParameter("@project_id", System.Data.DbType.String) { Value = model.ProjectId });
+                command.Parameters.Add(new SQLiteParameter("@log_date", System.Data.DbType.DateTime) { Value = model.LogDate });
+                command.Parameters.Add(new SQLiteParameter("@mode", System.Data.DbType.Int32) { Value = model.Mode });
+                command.Parameters.Add(new SQLiteParameter("@state", System.Data.DbType.Int32) { Value = model.State });
+                command.Parameters.Add(new SQLiteParameter("@work_code", System.Data.DbType.Int32) { Value = model.WorkCode });
+                command.Parameters.Add(new SQLiteParameter("@sync", System.Data.DbType.Boolean) { Value = isSync });
+                command.ExecuteNonQuery();
+            }
+            catch
+            {
+                throw;
+            }           
+        }
+
+        #region Workers
+
+        public string GetWorkerIdByEnrollNumberAndProjectId(string enrollNumber, string projectId)
+        {
+            if (_connection.State == System.Data.ConnectionState.Closed)
+            {
+                _connection.Open();
+            }
+            var command = new SQLiteCommand(_connection);
+            command.CommandText = "SELECT ifnull(user_id,'') AS user FROM user_maps WHERE enroll_number=@enroll_number AND project_id=@project_id;";
+            command.Parameters.Add(new SQLiteParameter("@enroll_number", enrollNumber));
+            command.Parameters.Add(new SQLiteParameter("@project_id", projectId));
+            var result = command.ExecuteScalar();
+            if (result == DBNull.Value)
+            {
+                result = "";
+            }
+
+            return result.ToString();
+        }
+
+        public int AddWorker(WorkerInfo info)
+        {
+            if (_connection.State == System.Data.ConnectionState.Closed)
+            {
+                _connection.Open();
+            }
+            var command = new SQLiteCommand(_connection);
+            command.CommandText = "INSERT INTO user_maps(user_id,enroll_number,project_id) VALUES(@worker_id, @enroll_number, @project_id);";
+            command.Parameters.Add(new SQLiteParameter("@worker_id", info.UserId));
+            command.Parameters.Add(new SQLiteParameter("@enroll_number", info.EnrollNumber));
+            command.Parameters.Add(new SQLiteParameter("@project_id", info.ProjectId));
+            return command.ExecuteNonQuery(System.Data.CommandBehavior.KeyInfo);
+        }
+
+        #endregion
+
+        #region install database
 
         public static void InstallSyncDatabase()
         {
-            if (!File.Exists(DbPath))
+            var dbPath = InitDbBuilder();
+            if (!File.Exists(dbPath))
             {
-                var dir = Path.GetDirectoryName(DbPath);
+                var dir = Path.GetDirectoryName(dbPath);
                 if (!Directory.Exists(dir))
                 {
                     Directory.CreateDirectory(dir);
                 }
-                SQLiteConnection.CreateFile(DbPath);
-            }            
+                SQLiteConnection.CreateFile(dbPath);
+            }
+
+            _builder = new SQLiteConnectionStringBuilder
+            {
+                DataSource = dbPath, Version = 3
+            };
+
+            CreateTableStructures(_builder);
         } 
         
-        public void CheckConnection()
+        private static void CreateTableStructures(SQLiteConnectionStringBuilder builder)
         {            
-            var connection = new SQLiteConnection(_dbBuilder.ConnectionString);
+            var connection = new SQLiteConnection(builder.ConnectionString);
             try
             {
                 connection.Open();
-                CreateSchemaAndTables(connection);
+                var tx = connection.BeginTransaction();
+                
+                var command = new SQLiteCommand(connection);
+                CreateUserMapTable(command);
+                CreateQueueTable(command);
+                CreateAttendanceLogTable(command);
+                CreateAttendanceLogArchiveTable(command);
+
+                tx.Commit();
             }
-            catch (SQLiteException ex)
+            catch
             {
-                Logger.ErrorFormat("connection Open error: {@Error}", ex);
                 throw;
             }
             finally
@@ -85,45 +165,96 @@ namespace ZKTeco.SyncBackendService.Connectors
                     connection.Close();
                 }                
             }            
-        }
-
-        private void CreateSchemaAndTables(SQLiteConnection connection)
-        {
-            var command = new SQLiteCommand(connection);
-            CreateAttendanceLogTable(command);
-            CreateAttendanceLogArchiveTable(command);
         }        
 
-        private void CreateAttendanceLogTable(SQLiteCommand command)
+        private static void CreateUserMapTable(SQLiteCommand command)
+        {
+            var sql = @"CREATE TABLE IF NOT EXISTS user_maps(
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            user_id        TEXT NOT NULL,
+                            enroll_number  TEXT NOT NULL,
+                            project_id     TEXT NOT NULL,
+                            create_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            change_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        );";
+            command.CommandText = sql;
+            command.CommandType = System.Data.CommandType.Text;
+            command.ExecuteNonQuery();
+        }
+
+        private static void CreateQueueTable(SQLiteCommand command)
+        {
+            var sql = @"CREATE TABLE IF NOT EXISTS queue(
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            refer_id INT NOT NULL,
+                            message TEXT NOT NULL,
+                            create_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        );";
+            command.CommandText = sql;
+            command.CommandType = System.Data.CommandType.Text;
+            command.ExecuteNonQuery();
+        }
+
+        private static void CreateAttendanceLogTable(SQLiteCommand command)
         {
             var sql = @"CREATE TABLE IF NOT EXISTS attendance_logs(
-                            id INT PRIMARY KEY AUTOINCREMENT,
+                            id INT PRIMARY KEY,
                             machine_id INT NOT NULL,
                             enroll_number  TEXT NOT NULL,
-                            log_date       TEXT NOT NULL,
-                            create_at      TEXT  NOT NULL,
-                            change_at      TEXT  NOT NULL,
-                            sync           INT  NOT NULL
+                            project_id     TEXT NOT NULL,
+                            log_date       TIMESTAMP NOT NULL,
+                            mode           INT NOT NULL,
+                            state          INT NOT NULL,
+                            work_code      INT NOT NULL,    
+                            create_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            change_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            sync           NUMERIC  NOT NULL
                         );";
             command.CommandText = sql;
             command.CommandType = System.Data.CommandType.Text;
             command.ExecuteNonQuery();
         }
         
-        private void CreateAttendanceLogArchiveTable(SQLiteCommand command)
+        private static void CreateAttendanceLogArchiveTable(SQLiteCommand command)
         {
             var sql = @"CREATE TABLE IF NOT EXISTS attendance_logs_archive(
-                            id INT PRIMARY KEY AUTOINCREMENT,
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
                             refer_no    INT NOT NULL,
                             machine_id INT NOT NULL,
                             enroll_number  TEXT NOT NULL,
-                            log_date       TEXT NOT NULL,
-                            create_at      TEXT  NOT NULL
+                            project_id     TEXT NOT NULL,
+                            log_date       TIMESTAMP NOT NULL,
+                            mode           INT NOT NULL,
+                            state          INT NOT NULL,
+                            work_code      INT NOT NULL, 
+                            create_at      TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP
                         );";
             command.CommandText = sql;
             command.CommandType = System.Data.CommandType.Text;
             command.ExecuteNonQuery();
         }
-        
+
+        #endregion
+
+        public void Dispose()
+        {
+            if (_connection != null && _connection.State == System.Data.ConnectionState.Open)
+            {
+                _connection.Close();
+                _connection = null;
+            }
+        }
+
+        private static string InitDbBuilder()
+        {
+            var dbPath = Path.Combine(ZKTecoConfig.AppRootFolder, "data", SYNCDB);
+            _builder = new SQLiteConnectionStringBuilder
+            {
+                DataSource = dbPath,
+                Version = 3
+            };
+            return dbPath;
+        }
+
     }
 }
