@@ -12,8 +12,6 @@ namespace ZKTeco.SyncBackendService.Connectors
 {
     public class CTMSWebApiConnector : ServiceBase
     {
-        private const string Token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRoLnN1YmRvbWFpbiI6InRwcyIsImF1dGgudXNlcmlkIjoibm9sb2dpbi1hZG1pbiIsInRzIjoxNDk4MDk0MDAyLCJ1c2VyX25hbWUiOiJhZG1pbiJ9.D3sCMpBVnxoC7FOx32t2rz8HfbG4hF1L81e1K4dKgeo";
-
         private HttpClient _client;
 
         public CTMSWebApiConnector()
@@ -23,8 +21,7 @@ namespace ZKTeco.SyncBackendService.Connectors
             _client.DefaultRequestHeaders.Accept.Clear();
             _client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-            _client.DefaultRequestHeaders.Add("Authorization", string.Format("Bearer {0}", Token));
-            //_client.DefaultRequestHeaders.Add("Content-Type", "application/json");
+            _client.DefaultRequestHeaders.Add("Authorization", string.Format("Bearer {0}", ZKTecoConfig.ApiToken));
 
             // It fixes the following error:
             // The underlying connection was closed: An unexpected error occurred on a send.
@@ -40,30 +37,52 @@ namespace ZKTeco.SyncBackendService.Connectors
                 var response = await _client.GetAsync(url);
                 if (response.IsSuccessStatusCode)
                 {
-                    var worker = await response.Content.ReadAsStringAsync();
-                    return worker;
+                    var worker = await response.Content.ReadAsAsync<WorkerInfo>();
+                    if (worker != null)
+                    {
+                        return worker.UserId;
+                    }
                 }
             }
             catch (Exception ex)
             {
-                throw;
+                Logger.ErrorFormat("FindProjectWorkerByFaceId error: {@ex}", ex);                
             }
-            return await Task.FromResult("None");
+            return await Task.FromResult("");
         }
 
-        public string Get(Dictionary<string, string> parameters)
+        public async Task<bool> CheckIn(string projectId, string workerId, DateTime logDate, string location)
         {
-            return null;
+            try
+            {
+                var response = await _client.PostAsJsonAsync(
+                    "attendances/in", 
+                    new CheckInInfo(projectId, workerId, location, logDate));
+                response.EnsureSuccessStatusCode();
+            }
+            catch (Exception ex)
+            {
+                Logger.ErrorFormat("CheckIn error: {@ex}", ex);
+                return false;
+            }
+            return true;
         }
 
-        public void Post(string json)
+        public async Task<bool> CheckOut(string projectId, string workerId, DateTime logDate)
         {
-
-        }
-
-        public void Put(string json)
-        {
-
-        }
+            try
+            {
+                var response = await _client.PostAsJsonAsync(
+                    "attendances/out",
+                    new CheckOutInfo(projectId, workerId, logDate));
+                response.EnsureSuccessStatusCode();
+            }
+            catch (Exception ex)
+            {
+                Logger.ErrorFormat("CheckOut error: {@ex}", ex);
+                return false;
+            }
+            return true;
+        }        
     }
 }

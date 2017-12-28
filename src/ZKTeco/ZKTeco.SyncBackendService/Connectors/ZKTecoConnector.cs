@@ -146,10 +146,9 @@ namespace ZKTeco.SyncBackendService.Connectors
             //}
 
             //_watch.Restart();
-            var log = new AttendanceLog(enrollNumber,
-                attState, verifyMethod,
-                year, month, day, hour, minute, second,
-                workCode, _device.MachineNumber);
+            var log = new AttendanceLog(enrollNumber, attState, verifyMethod,
+                year, month, day, hour, minute, second, workCode, 
+                _device.MachineNumber, _device.DeviceName, _device.DeviceType);
             //_db.Enqueue(log);            
             //_watch.Stop();
 

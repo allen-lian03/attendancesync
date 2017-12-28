@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Configuration;
 using System.Net;
+using ZKTeco.SyncBackendService.Configs;
+using ZKTeco.SyncBackendService.Models;
 
 namespace ZKTeco.SyncBackendService
 {
@@ -11,33 +14,40 @@ namespace ZKTeco.SyncBackendService
     /// </summary>
     internal static class ZKTecoConfig
     {
-        private static IPEndPoint[] _ips;
-
-        public static IPEndPoint[] DeviceIPs
+        private static DeviceConfig[] _devices;
+        /// <summary>
+        /// Device information
+        /// </summary>
+        public static DeviceConfig[] Devices
         {
             get
             {
-                if (_ips == null)
+                if (_devices == null)
                 {
-                    var addresses = GetStringValue("DeviceIPs").Trim(';').Split(';');                    
-                    _ips = new IPEndPoint[addresses.Length];
-                    for (var i = 0; i < addresses.Length; i++)
+                    var devices = new List<DeviceConfig>(10);
+                    var group = ConfigurationManager.GetSection("deviceGroup") as DeviceConfigurationSectionHandler;
+                    if (group != null)
                     {
-                        var address = addresses[i].Split(':');
-                        switch (address.Length)
+                        foreach (var device in group.Devices)
                         {
-                            case 2:
-                                _ips[i] = new IPEndPoint(IPAddress.Parse(address[0]), int.Parse(address[1]));
-                                break;
-                            case 1:
-                                _ips[i] = new IPEndPoint(IPAddress.Parse(address[0]), 4370);
-                                break;
-                            default:
+                            var config = device as DeviceConfiguration;
+                            if (config == null)
+                            {
                                 continue;
-                        }                     
+                            }
+
+                            devices.Add(new DeviceConfig
+                            {
+                                DeviceName = config.Name,
+                                IP = config.IP,
+                                Port = config.Port,
+                                Type = config.Type
+                            });
+                        }
                     }
-                }
-                return _ips;
+                    _devices = devices.ToArray();
+                }                
+                return _devices;
             }
         }
 
@@ -67,9 +77,28 @@ namespace ZKTeco.SyncBackendService
             {
                 if (_apiRootUrl == null)
                 {
-                    _apiRootUrl = GetStringValue("ApiRootUrl");
+                    var api = GetStringValue("ApiRootUrl");
+                    if (!api.EndsWith("/"))
+                    {
+                        api += "/";
+                    }
+                    _apiRootUrl = api;
                 }
                 return _apiRootUrl;
+            }
+        }
+
+        private static string _apiToken;
+
+        public static string ApiToken
+        {
+            get
+            {
+                if (_apiToken == null)
+                {
+                    _apiToken = GetStringValue("ApiToken");
+                }
+                return _apiToken;
             }
         }
 

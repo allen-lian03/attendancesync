@@ -1,11 +1,27 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ZKTeco.SyncBackendService.Models
 {
+    /// <summary>
+    /// it describes one device is checkin, checkout or checkin&checkout.
+    /// </summary>
+    public enum DeviceType
+    {
+        /// <summary>
+        /// Out type means, workers only go out from this door, not go in.
+        /// </summary>
+        Out = -1,
+        /// <summary>
+        /// InOut type means, workers may go in / out from this door.
+        /// </summary>
+        InOut = 0,
+        /// <summary>
+        /// In type means, workers only go in from this door, not go out.
+        /// </summary>
+        In = 1    
+    }
+
+    [Obsolete]
     public enum AttendanceState
     {
         CheckIn = 0,
@@ -16,6 +32,7 @@ namespace ZKTeco.SyncBackendService.Models
         OTOut = 5
     }
 
+    [Obsolete]
     public enum VerificationMode
     {
         Password = 0,

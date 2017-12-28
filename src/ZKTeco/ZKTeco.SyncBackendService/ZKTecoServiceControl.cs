@@ -65,7 +65,7 @@ namespace ZKTeco.SyncBackendService
 
         private void InitializeDeviceConnectors()
         {
-            var count = ZKTecoConfig.DeviceIPs.Length;
+            var count = ZKTecoConfig.Devices.Length;
 
             // Initialize this thread pool. 
             _connectors = new List<ZKTecoConnector>(count);
@@ -73,11 +73,13 @@ namespace ZKTeco.SyncBackendService
             {
                 var wrapper = new AxDeviceWrapper(
                     new CZKEMClass(),
-                    ZKTecoConfig.DeviceIPs[i]);
+                    ZKTecoConfig.Devices[i]);
 
                 _connectors.Add(new ZKTecoConnector(wrapper, _dbConnector));
 
-                Logger.InfoFormat("Device ip:{ip}, port:{port}.", ZKTecoConfig.DeviceIPs[i].Address, ZKTecoConfig.DeviceIPs[i].Port);
+                Logger.InfoFormat("Device name: {name}, Device ip:{ip}, port:{port}, type:{type}.", 
+                    ZKTecoConfig.Devices[i].DeviceName, ZKTecoConfig.Devices[i].IP, 
+                    ZKTecoConfig.Devices[i].Port, ZKTecoConfig.Devices[i].Type);
             }
         }
 

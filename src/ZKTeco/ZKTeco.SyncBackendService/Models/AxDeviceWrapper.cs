@@ -5,6 +5,7 @@ using System.Threading;
 using System.Timers;
 using Topshelf.Logging;
 using zkemkeeper;
+using ZKTeco.SyncBackendService.Models;
 
 namespace ZKTeco.SyncBackendService.Models
 {    
@@ -31,17 +32,22 @@ namespace ZKTeco.SyncBackendService.Models
         /// </summary>
         private System.Timers.Timer _timer;
 
-        public AxDeviceWrapper(CZKEMClass axCZKEM, IPEndPoint ip)
+        private AxDeviceWrapper(CZKEMClass axCZKEM)
         {
             Device = axCZKEM;
-            IP = ip.Address.ToString();
-            Port = ip.Port;
-
             _logger = HostLogger.Get<AxDeviceWrapper>();
             _timer = new System.Timers.Timer(2000);
             _timer.Elapsed += OnElapsed;
+        }        
+
+        public AxDeviceWrapper(CZKEMClass axCZKEM, DeviceConfig config) : this(axCZKEM)
+        {
+            IP = config.IP;
+            Port = config.Port;
+            DeviceName = config.DeviceName;
+            DeviceType = config.Type;
         }
-        
+
         public CZKEMClass Device { get; private set; }
 
         public string IP { get; private set; }
@@ -49,6 +55,10 @@ namespace ZKTeco.SyncBackendService.Models
         public int Port { get; private set; }
 
         public int MachineNumber { get { return 1; } }
+
+        public string DeviceName { get; set; }
+
+        public DeviceType DeviceType { get; set; }
 
         [HandleProcessCorruptedStateExceptions]
         public bool Connnect()

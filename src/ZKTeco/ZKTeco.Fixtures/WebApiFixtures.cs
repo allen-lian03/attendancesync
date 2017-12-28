@@ -11,8 +11,9 @@ namespace ZKTeco.Fixtures
         public void TestFindProjectWorkerByFaceId()
         {
             var connector = new CTMSWebApiConnector();
-            var userId = connector.FindProjectWorkerByFaceId("58a284fdfc127333859204f0", "face001").GetAwaiter().GetResult();
+            var userId = connector.FindProjectWorkerByFaceId("592e2531b2ddc226f0df2b24", "1").GetAwaiter().GetResult();
             Assert.IsNotNull(userId);
+            Assert.AreEqual(24, userId.Length);
         }
     }
 }

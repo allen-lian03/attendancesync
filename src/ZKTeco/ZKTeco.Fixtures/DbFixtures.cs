@@ -17,14 +17,15 @@ namespace ZKTeco.Fixtures
         public void TestEnqueue()
         {
             var connector = new SqliteConnector();
-            connector.Enqueue(new SyncBackendService.Models.AttendanceLog("1", 15, 15, 2017, 12, 27, 8, 8, 30, 0, 1));
+            connector.Enqueue(new SyncBackendService.Models.AttendanceLog("1", 15, 15, 2017, 12, 27, 8, 8, 30, 0, 1, "gate-01", SyncBackendService.Models.DeviceType.InOut));
         }
 
         [TestMethod]
         public void TestAttendanceLog()
         {
             var connector = new SqliteConnector();
-            connector.InsertAttendanceLog(new SyncBackendService.Models.AttendanceLog("1", 15, 15, 2017, 12, 27, 8, 8, 31, 0, 1), false);
+            connector.AddAttendanceLog(
+                new SyncBackendService.Models.AttendanceLog("1", 15, 15, 2017, 12, 27, 8, 8, 31, 0, 1, "gate-01", SyncBackendService.Models.DeviceType.InOut));
         }
     }
 }

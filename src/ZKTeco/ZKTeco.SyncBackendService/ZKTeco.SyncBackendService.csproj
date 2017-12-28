@@ -138,12 +138,16 @@
     <Compile Include="Bases\IJobHandler.cs" />
     <Compile Include="Bases\ILoggable.cs" />
     <Compile Include="Bases\ServiceBase.cs" />
+    <Compile Include="Configs\DeviceConfigurationSection.cs" />
     <Compile Include="Connectors\CTMSWebApiConnector.cs" />
     <Compile Include="Events\EventHub.cs" />
     <Compile Include="Events\EventMessage.cs" />
     <Compile Include="Jobs\SyncToWebHandler.cs" />
     <Compile Include="Models\AttendanceLog.cs" />
     <Compile Include="Models\AxDeviceWrapper.cs" />
+    <Compile Include="Models\CheckInInfo.cs" />
+    <Compile Include="Models\CheckOutInfo.cs" />
+    <Compile Include="Models\DeviceConfig.cs" />
     <Compile Include="Models\Enums.cs" />
     <Compile Include="Models\WorkerInfo.cs" />
     <Compile Include="Program.cs" />
@@ -200,6 +204,7 @@
     <ZKTecoDLLs Include="..\libs\$(Platform)\*.dll" />
     <ZKTecoBats Include="..\libs\*.bat" />
   </ItemGroup>
+  <ItemGroup />
   <Target Name="AfterBuild">
     <Copy SourceFiles="@(ZKTecoDLLs)" DestinationFolder="$(OutputPath)\$(Platform)" />
     <Copy SourceFiles="@(ZKTecoBats)" DestinationFolder="$(OutputPath)" />
