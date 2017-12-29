@@ -1,6 +1,5 @@
 ﻿using Newtonsoft.Json;
 using System;
-using System.Linq;
 using Topshelf.Logging;
 using ZKTeco.SyncBackendService.Bases;
 using ZKTeco.SyncBackendService.Connectors;
@@ -9,7 +8,7 @@ using ZKTeco.SyncBackendService.Models;
 
 namespace ZKTeco.SyncBackendService.Jobs
 {
-    internal class SyncToWebHandler : IJobHandler
+    public class SyncToWebHandler : IJobHandler
     {
         private SqliteConnector _db;
         
@@ -47,24 +46,13 @@ namespace ZKTeco.SyncBackendService.Jobs
                 return;
             }
 
-            bool ok;
             switch(attendanceLog.DeviceType)
             {
                 case DeviceType.In:
-                    _db.AddAttendanceLog(attendanceLog);
-                    ok = _web.CheckIn(attendanceLog.ProjectId, workerId, attendanceLog.LogDate, attendanceLog.DeviceName).GetAwaiter().GetResult();
-                    if (ok)
-                    {
-                        _db.SyncAttendanceLogSuccess(attendanceLog.Id);
-                    }
+                    EnsureCheckIn(attendanceLog, workerId);
                     break;
                 case DeviceType.Out:
-                    _db.AddAttendanceLog(attendanceLog);
-                    ok = _web.CheckOut(attendanceLog.ProjectId, workerId, attendanceLog.LogDate).GetAwaiter().GetResult();
-                    if (ok)
-                    {
-                        _db.SyncAttendanceLogSuccess(attendanceLog.Id);
-                    }
+                    EnsureCheckOut(attendanceLog, workerId);
                     break;
                 case DeviceType.InOut:
                     EnsureCheckInOrCheckOut(attendanceLog, workerId);
@@ -72,7 +60,7 @@ namespace ZKTeco.SyncBackendService.Jobs
                 default:
                     _logger.ErrorFormat("Not support device type:{@attendance}", attendanceLog);
                     break;
-            }         
+            }
         }
 
         private bool EnsureUniqueAttendanceLog(AttendanceLog log)
@@ -110,22 +98,58 @@ namespace ZKTeco.SyncBackendService.Jobs
             return string.Empty;
         }
 
-        private void EnsureCheckInOrCheckOut(AttendanceLog log, string workerId)
+        private void EnsureCheckIn(AttendanceLog attendanceLog, string workerId)
         {
-            // the first attendance log in the specific date.
-            var attendances = _db.GetAttendanceLogsWithinDate(log.UserId, log.LogDate);
-            if (attendances.Count == 0)
+            attendanceLog.CheckIn();
+            _db.AddAttendanceLog(attendanceLog);
+            var ok = _web.CheckIn(attendanceLog.ProjectId, workerId, attendanceLog.LogDate,
+                attendanceLog.DeviceName).GetAwaiter().GetResult();
+            if (ok)
             {
-                _db.AddAttendanceLog(log);
-                var ok = _web.CheckIn(log.ProjectId, workerId, log.LogDate, log.DeviceName).GetAwaiter().GetResult();
-                if (ok)
-                {
-                    _db.SyncAttendanceLogSuccess(log.Id);
-                }                
+                _db.SyncAttendanceLogSuccess(attendanceLog.Id);
+            }
+        }
+
+        private void EnsureCheckOut(AttendanceLog attendanceLog, string workerId)
+        {
+            attendanceLog.CheckOut();
+            _db.AddAttendanceLog(attendanceLog);
+            var ok = _web.CheckOut(attendanceLog.ProjectId, workerId, attendanceLog.LogDate)
+                .GetAwaiter().GetResult();
+            if (ok)
+            {
+                _db.SyncAttendanceLogSuccess(attendanceLog.Id);
+            }
+        }
+
+        private void EnsureCheckInOrCheckOut(AttendanceLog log, string workerId)
+        {            
+            var attendance = _db.GetLastAttendanceLogByEnrollNumber(log.UserId);
+            AttendanceStatus status = AttendanceStatus.Unknown;
+            try
+            {
+                status = log.CalculateStatus(attendance);
+            }
+            catch (NotSupportedException ex)
+            {
+                _logger.ErrorFormat("EnsureCheckInOrCheckOut error:{exception}, attendance:{@log}, worker:{id}", 
+                    ex.Message, attendance, workerId);
                 return;
             }
-            // TODO: missing in/out implement.
-            var sum = attendances.Sum(a => (int)a.DeviceType);
+            
+            if (status == AttendanceStatus.CheckIn)
+            {
+                EnsureCheckIn(log, workerId);
+                return;
+            }
+
+            if (status == AttendanceStatus.CheckOut)
+            {
+                EnsureCheckOut(log, workerId);
+                return;
+            }
+
+            _logger.ErrorFormat("EnsureCheckInOrCheckOut: Unknown status, attendance:{@log}, worker:{id}", attendance, workerId);
         }
     }
 }

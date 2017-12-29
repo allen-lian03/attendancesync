@@ -21,8 +21,15 @@ namespace ZKTeco.SyncBackendService.Models
         In = 1    
     }
 
+    public enum AttendanceStatus
+    {
+        Unknown = 0,
+        CheckIn = 1,
+        CheckOut = -1,
+    }
+
     [Obsolete]
-    public enum AttendanceState
+    public enum State
     {
         CheckIn = 0,
         CheckOut = 1,
