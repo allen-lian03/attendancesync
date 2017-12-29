@@ -109,6 +109,7 @@ namespace ZKTeco.SyncBackendService.Connectors
             return logs;
         }
 
+        [Obsolete]
         public List<AttendanceLog> GetAttendanceLogsWithinDate(string enrollNumber, DateTime date)
         {
             if (_connection.State == System.Data.ConnectionState.Closed)
@@ -149,6 +150,46 @@ namespace ZKTeco.SyncBackendService.Connectors
             return logs;
         }
 
+        public AttendanceLog GetLastAttendanceLogByEnrollNumber(string enrollNumber)
+        {
+            if (_connection.State == System.Data.ConnectionState.Closed)
+            {
+                _connection.Open();
+            }
+
+            AttendanceLog log = null;
+
+            var command = new SQLiteCommand(_connection);
+            command.CommandText = @"SELECT id, enroll_number, state, mode, log_date, work_code,
+                machine_id, project_id, ifnull(device_name,''), ifnull(device_type,0) FROM attendance_logs 
+                WHERE enroll_number=@enroll_number ORDER BY log_date DESC LIMIT 1;";
+            command.Parameters.Add(new SQLiteParameter("@enroll_number", enrollNumber));
+            var results = command.ExecuteReader();
+            if (results == null)
+            {
+                return log;
+            }
+
+            while (results.Read())
+            {
+                log = new AttendanceLog(
+                    results.GetInt64(0),
+                    results.GetString(1),
+                    results.GetInt32(2),
+                    results.GetInt32(3),
+                    results.GetDateTime(4),
+                    results.GetInt32(5),
+                    results.GetInt32(6),
+                    results.GetString(7),
+                    results.GetString(8),
+                    (DeviceType)results.GetInt32(9)
+                    );
+                break;
+            }
+
+            return log;
+        }
+
         public void AddAttendanceLog(AttendanceLog model)
         {
             try
@@ -159,9 +200,9 @@ namespace ZKTeco.SyncBackendService.Connectors
                 }
                 var command = new SQLiteCommand(_connection);
                 command.CommandText = @"INSERT INTO attendance_logs(id,machine_id,enroll_number,
-                    project_id,log_date,mode,state,work_code,sync,device_name,device_type) 
+                    project_id,log_date,mode,state,work_code,sync,device_name,device_type,log_status) 
                     VALUES(@id, @machine_id, @enroll_number, @project_id, @log_date, @mode, 
-                           @state, @work_code, 0,@device_name,@device_type);";
+                           @state, @work_code, -1, @device_name,@device_type,@log_status);";
                 command.Parameters.Add(new SQLiteParameter("@id", System.Data.DbType.Int64) { Value=model.Id });
                 command.Parameters.Add(new SQLiteParameter("@machine_id", System.Data.DbType.Int32) { Value = model.MachineId });
                 command.Parameters.Add(new SQLiteParameter("@enroll_number", System.Data.DbType.String) { Value = model.UserId });
@@ -172,6 +213,7 @@ namespace ZKTeco.SyncBackendService.Connectors
                 command.Parameters.Add(new SQLiteParameter("@work_code", System.Data.DbType.Int32) { Value = model.WorkCode });
                 command.Parameters.Add(new SQLiteParameter("@device_name", System.Data.DbType.String) { Value = model.DeviceName });
                 command.Parameters.Add(new SQLiteParameter("@device_type", System.Data.DbType.Int32) { Value = model.DeviceType });
+                command.Parameters.Add(new SQLiteParameter("@log_status", System.Data.DbType.Int32) { Value = model.LogStatus });
                 command.ExecuteNonQuery();
             }
             catch
@@ -180,15 +222,16 @@ namespace ZKTeco.SyncBackendService.Connectors
             }           
         }
 
-        public void SyncAttendanceLogSuccess(long id)
+        public void SyncAttendanceLogSuccess(long id, bool ok = true)
         {
             if (_connection.State == System.Data.ConnectionState.Closed)
             {
                 _connection.Open();
             }
             var command = new SQLiteCommand(_connection);
-            command.CommandText = @"UPDATE attendance_logs SET sync=1 WHERE id=@id;";
+            command.CommandText = @"UPDATE attendance_logs SET sync=@sync,change_at=datetime('now') WHERE id=@id;";
             command.Parameters.Add(new SQLiteParameter("@id", System.Data.DbType.Int64) { Value = id });
+            command.Parameters.Add(new SQLiteParameter("@sync", System.Data.DbType.Int32) { Value = ok ? 1 : 0 });
             command.ExecuteNonQuery();
         }
 
@@ -324,6 +367,7 @@ namespace ZKTeco.SyncBackendService.Connectors
                             work_code      INT NOT NULL,
                             device_name    TEXT NOT NULL,
                             device_type    INT NOT NULL,
+                            log_status     INT NOT NULL,
                             create_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                             change_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                             sync           NUMERIC  NOT NULL
@@ -332,7 +376,10 @@ namespace ZKTeco.SyncBackendService.Connectors
             command.CommandType = System.Data.CommandType.Text;
             command.ExecuteNonQuery();
         }
-        
+        /// <summary>
+        /// TODO: New feature not implemented.
+        /// </summary>
+        /// <param name="command"></param>
         private static void CreateAttendanceLogArchiveTable(SQLiteCommand command)
         {
             var sql = @"CREATE TABLE IF NOT EXISTS attendance_logs_archive(
@@ -347,6 +394,7 @@ namespace ZKTeco.SyncBackendService.Connectors
                             work_code      INT NOT NULL, 
                             device_name    TEXT NOT NULL,
                             device_type    INT NOT NULL,
+                            log_status     INT NOT NULL,
                             create_at      TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP
                         );";
             command.CommandText = sql;

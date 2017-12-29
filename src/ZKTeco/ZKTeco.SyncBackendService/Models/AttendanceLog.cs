@@ -73,5 +73,62 @@ namespace ZKTeco.SyncBackendService.Models
         /// It describes the device is checkin, checkout or checkin&out.
         /// </summary>
         public DeviceType DeviceType { get; private set; }
+
+        public AttendanceStatus LogStatus { get; private set; }
+
+        public void CheckIn()
+        {
+            this.LogStatus = AttendanceStatus.CheckIn;
+        }
+
+        public void CheckOut()
+        {
+            this.LogStatus = AttendanceStatus.CheckOut;
+        }
+
+        public AttendanceStatus CalculateStatus(AttendanceLog lastLog)
+        {
+            if (lastLog == null)
+            {
+                return AttendanceStatus.CheckIn;
+            }
+
+            var diff = LogDate.Subtract(lastLog.LogDate);
+            if (diff.TotalHours >= 16)
+            {
+                // if new log date is more than 16 hours after last log date.
+                // system think it is one check in.
+                return AttendanceStatus.CheckIn;
+            }
+
+            if (diff.TotalHours < 16 && diff.TotalHours > 0.5)
+            {
+                if (lastLog.LogStatus == AttendanceStatus.CheckIn)
+                {
+                    return AttendanceStatus.CheckOut;
+                }
+
+                if (lastLog.LogStatus == AttendanceStatus.CheckOut)
+                {
+                    return AttendanceStatus.CheckIn;
+                }
+            }
+
+            if (diff.TotalHours < 0.5)
+            {
+                // time range is less than 30 minutes, system think it is a duplicated attendance log.
+                if (lastLog.LogStatus == AttendanceStatus.CheckIn)
+                {
+                    return AttendanceStatus.CheckIn;
+                }
+
+                if (lastLog.LogStatus == AttendanceStatus.CheckOut)
+                {
+                    return AttendanceStatus.CheckOut;
+                }                
+            }
+
+            throw new NotSupportedException("Unknown attendance status.");
+        }
     }
 }
