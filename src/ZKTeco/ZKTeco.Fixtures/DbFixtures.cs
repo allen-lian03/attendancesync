@@ -1,6 +1,7 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ZKTeco.SyncBackendService.Connectors;
 using ZKTeco.SyncBackendService.Models;
+using ZKTeco.SyncBackendService.Utils;
 
 namespace ZKTeco.Fixtures
 {
@@ -12,7 +13,7 @@ namespace ZKTeco.Fixtures
         [TestInitialize]
         public void InitDb()
         {
-            SqliteConnector.InstallSyncDatabase();
+            DbInstaller.Install();
 
             _connector = new SqliteConnector();
         }
@@ -117,6 +118,6 @@ namespace ZKTeco.Fixtures
             var currLog = new AttendanceLog("1", 15, 15, 2017, 12, 28, 10, 10, 0, 0, 1, "gate-01", DeviceType.InOut);
             var status = currLog.CalculateStatus(lastLog);
             Assert.AreEqual(AttendanceStatus.CheckIn, status);
-        }
+        }       
     }
 }

@@ -1,12 +1,14 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using System.Threading;
 using Topshelf.Logging;
 using ZKTeco.SyncBackendService.Bases;
+using ZKTeco.SyncBackendService.Events;
 using ZKTeco.SyncBackendService.Models;
 
 namespace ZKTeco.SyncBackendService.Connectors
 {
-    internal class ZKTecoConnector : ServiceBase
+    internal class DeviceConnector : ServiceBase
     {
         /// <summary>
         /// If failing to connect to the device, 
@@ -21,29 +23,34 @@ namespace ZKTeco.SyncBackendService.Connectors
 
         private ManualResetEvent _signal;
 
-        private SqliteConnector _db;
+        private AttendanceQueue _queue;
 
         private Stopwatch _watch;
 
-        public ZKTecoConnector(AxDeviceWrapper device, SqliteConnector connector)
+        public DeviceConnector(AxDeviceWrapper device, AttendanceQueue queue)
         {
             _device = device;
-            _db = connector;
+            _queue = queue;
 
             _signal = new ManualResetEvent(false);
             _watch = new Stopwatch();
-            Logger = HostLogger.Get<ZKTecoConnector>();
+            Logger = HostLogger.Get<DeviceConnector>();
         }
 
         public void Start()
         {
             Logger.Info("ZKTecoConnector.Start method runs.");
+
             if (Connect())
             {
                 Logger.Info("ZKTecoConnector.Connect method is ok.");
-                RegisterEvents();
+                RegisterEvents(() => {
+                    Logger.Info("StartRealTimeLogs");
+                    _device.StartRealTimeLogs();
+                });
                 Logger.Info("ZKTecoConnector.RegisterEvents method is ok.");
             }
+
             Logger.Info("ZKTecoConnector.Connect returns.");
             _signal.WaitOne();
             Logger.Info("ZKTecoConnector.Start method ends.");
@@ -54,7 +61,6 @@ namespace ZKTeco.SyncBackendService.Connectors
             Logger.Info("ZKTecoConnector.Stop starts...");
             _signal.Set();
             _device.Disconnect();
-            _db.Dispose();
             UnregisterEvents();
             Logger.Info("ZKTecoConnector.Stop ends.");
         }
@@ -81,7 +87,7 @@ namespace ZKTeco.SyncBackendService.Connectors
             return true;
         }
 
-        public void RegisterEvents()
+        public void RegisterEvents(Action registerCompleted)
         {
             if (_device.RegisterAllEvents())
             {
@@ -96,15 +102,14 @@ namespace ZKTeco.SyncBackendService.Connectors
                 _device.Device.OnHIDNum += OnHIDNum;
                 _device.Device.OnWriteCard += OnWriteCard;
                 _device.Device.OnEmptyCard += OnEmptyCard;
-                //_device.Device.OnDeleteTemplate += OnDeleteTemplate;
+                _device.Device.OnDeleteTemplate += OnDeleteTemplate;
 
-                Logger.Info("StartRealTimeLogs");
-                _device.StartRealTimeLogs();
+                registerCompleted?.Invoke();
             }
         }
 
         public void UnregisterEvents()
-        {          
+        {
             _device.Device.OnAttTransactionEx -= OnAttTransactionEx;
             _device.Device.OnFinger -= OnFinger;
             _device.Device.OnNewUser -= OnNewUser;
@@ -116,7 +121,7 @@ namespace ZKTeco.SyncBackendService.Connectors
             _device.Device.OnHIDNum -= OnHIDNum;
             _device.Device.OnWriteCard -= OnWriteCard;
             _device.Device.OnEmptyCard -= OnEmptyCard;
-            //_device.Device.OnDeleteTemplate -= OnDeleteTemplate;
+            _device.Device.OnDeleteTemplate -= OnDeleteTemplate;
         }
 
         /// <summary>
@@ -138,19 +143,13 @@ namespace ZKTeco.SyncBackendService.Connectors
         /// </param>
         private void OnAttTransactionEx(string enrollNumber, int isInValid, int attState, int verifyMethod, 
             int year, int month, int day, int hour, int minute, int second, int workCode)
-        {
-            //if (isInValid > 0)
-            //{
-            //    // The current user doesn't pass the verification.
-            //    return;
-            //}
-
-            //_watch.Restart();
+        {         
+            _watch.Restart();
             var log = new AttendanceLog(enrollNumber, attState, verifyMethod,
                 year, month, day, hour, minute, second, workCode, 
                 _device.MachineNumber, _device.DeviceName, _device.DeviceType);
-            //_db.Enqueue(log);            
-            //_watch.Stop();
+            _queue.Enqueue(log);
+            _watch.Stop();
 
             Logger.InfoFormat("Time:{time}, OnAttTransactionEx:[{@AttendanceLog}], IsInValid[{IsInValid}].",
                 _watch.ElapsedMilliseconds, log, isInValid);

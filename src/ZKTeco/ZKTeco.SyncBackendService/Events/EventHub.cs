@@ -10,7 +10,7 @@ namespace ZKTeco.SyncBackendService.Events
     /// <summary>
     /// Singleton
     /// </summary>
-    internal class EventHub
+    public class EventHub
     {
         private ConcurrentDictionary<EventType, List<IJobHandler>> _subscribers;
 
@@ -22,7 +22,7 @@ namespace ZKTeco.SyncBackendService.Events
 
         private LogWriter _logger;
 
-        private EventHub()
+        public EventHub()
         {
             _subscribers = new ConcurrentDictionary<EventType, List<IJobHandler>>();
             _innerHub = new ConcurrentQueue<EventMessage>();
