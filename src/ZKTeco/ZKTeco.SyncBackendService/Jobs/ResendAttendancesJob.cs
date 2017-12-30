@@ -24,6 +24,7 @@ namespace ZKTeco.SyncBackendService.Jobs
         {
             _logger.Info("ResendAttendancesJob Execute starts...");
             var logs = _db.GetUnsyncAttendanceLogs();
+            _logger.InfoFormat("Failed attendance logs count:{count}", logs.Count);
             foreach (var log in logs)
             {
                 var workerId = EnsureCurrentWorker(log);
