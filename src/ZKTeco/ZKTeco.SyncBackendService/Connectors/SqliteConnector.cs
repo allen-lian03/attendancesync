@@ -2,44 +2,61 @@
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
-using System.IO;
 using Topshelf.Logging;
 using ZKTeco.SyncBackendService.Bases;
 using ZKTeco.SyncBackendService.Events;
 using ZKTeco.SyncBackendService.Models;
+using ZKTeco.SyncBackendService.Utils;
 
 namespace ZKTeco.SyncBackendService.Connectors
 {
     public class SqliteConnector : ServiceBase
     {
-        const string SYNCDB = "syncdb.sqlite";
-
-        private static SQLiteConnectionStringBuilder _builder;
-
         private SQLiteConnection _connection;
 
         public SqliteConnector()
-        {
-            InitDbBuilder();
-            _connection = new SQLiteConnection(_builder.ConnectionString);
-
+        {            
+            _connection = new SQLiteConnection(DbInstaller.ConnectionString);
             Logger = HostLogger.Get<SqliteConnector>();           
         }
 
-        public void Enqueue(AttendanceLog model)
+        #region Queue
+
+        public string Enqueue(long id, string message)
         {
-            var message = JsonConvert.SerializeObject(model);
             try
             {
                 if (_connection.State == System.Data.ConnectionState.Closed)
                 {
                     _connection.Open();
                 }
-
+                var guid = Guid.NewGuid();
                 var command = new SQLiteCommand(_connection);
-                command.CommandText = "INSERT INTO queue(refer_id, message) VALUES(@refer_id, @message);";
-                command.Parameters.Add(new SQLiteParameter("@refer_id", model.Id));
+                command.CommandText = "INSERT INTO queue(id, refer_id, message) VALUES(@id, @refer_id, @message);";
+                command.Parameters.Add(new SQLiteParameter("@id", guid));
+                command.Parameters.Add(new SQLiteParameter("@refer_id", id));
                 command.Parameters.Add(new SQLiteParameter("@message", message));
+                command.ExecuteNonQuery();
+                return guid.ToString("D");
+            }
+            catch (SQLiteException se)
+            {
+                Logger.ErrorFormat("Enqueue error:{@ex}", se);
+                throw;
+            }
+        }
+
+        public void Dequeue(string id)
+        {
+            try
+            {
+                if (_connection.State == System.Data.ConnectionState.Closed)
+                {
+                    _connection.Open();
+                }                
+                var command = new SQLiteCommand(_connection);
+                command.CommandText = "DELETE FROM queue WHERE id=@id;";
+                command.Parameters.Add(new SQLiteParameter("@id", id));
                 command.ExecuteNonQuery();
             }
             catch (SQLiteException se)
@@ -47,9 +64,9 @@ namespace ZKTeco.SyncBackendService.Connectors
                 Logger.ErrorFormat("Enqueue error:{@ex}", se);
                 throw;
             }
-
-            EventHub.Instance.PublishAsync(new EventMessage(EventType.SyncWeb, model.Id, message));
         }
+
+        #endregion
 
         #region Attendance log
 
@@ -82,73 +99,40 @@ namespace ZKTeco.SyncBackendService.Connectors
 
             var command = new SQLiteCommand(_connection);
             command.CommandText = @"SELECT id,enroll_number,state,mode,log_date,work_code,
-                machine_id,project_id,ifnull(device_name,''), ifnull(device_type,0) FROM attendance_logs 
-                WHERE sync=0;";            
-            var results = command.ExecuteReader();
-            if (results == null)
+                machine_id,project_id,ifnull(device_name,''), ifnull(device_type,0), log_status FROM attendance_logs 
+                WHERE sync=-1;";
+
+            SQLiteDataReader read = null;
+
+            try
             {
+                read = command.ExecuteReader();
+                while (read.Read())
+                {
+                    logs.Add(new AttendanceLog(
+                        read.GetInt64(0),
+                        read.GetString(1),
+                        read.GetInt32(2),
+                        read.GetInt32(3),
+                        read.GetDateTime(4),
+                        read.GetInt32(5),
+                        read.GetInt32(6),
+                        read.GetString(7),
+                        read.GetString(8),
+                        (DeviceType)read.GetInt32(9),
+                        (AttendanceStatus)read.GetInt32(10)
+                        ));                    
+                }
                 return logs;
             }
-
-            while(results.Read())
+            finally
             {
-                logs.Add(new AttendanceLog(
-                    results.GetInt64(0),                    
-                    results.GetString(1),
-                    results.GetInt32(2),
-                    results.GetInt32(3),
-                    results.GetDateTime(4),
-                    results.GetInt32(5),
-                    results.GetInt32(6),
-                    results.GetString(7),
-                    results.GetString(8),
-                    (DeviceType)results.GetInt32(9)
-                    ));
-            }
-
-            return logs;
-        }
-
-        [Obsolete]
-        public List<AttendanceLog> GetAttendanceLogsWithinDate(string enrollNumber, DateTime date)
-        {
-            if (_connection.State == System.Data.ConnectionState.Closed)
-            {
-                _connection.Open();
-            }
-
-            var logs = new List<AttendanceLog>(10);
-
-            var command = new SQLiteCommand(_connection);
-            command.CommandText = @"SELECT id, enroll_number, state, mode, log_date, work_code,
-                machine_id, project_id, ifnull(device_name,''), ifnull(device_type,0) FROM attendance_logs 
-                WHERE enroll_number=@enroll_number AND log_date=@date;";
-            command.Parameters.Add(new SQLiteParameter("@enroll_number", enrollNumber));
-            command.Parameters.Add(new SQLiteParameter("@date", date.Date));
-            var results = command.ExecuteReader();
-            if (results == null)
-            {
-                return logs;
-            }
-
-            while (results.Read())
-            {
-                logs.Add(new AttendanceLog(
-                    results.GetInt64(0),
-                    results.GetString(1),
-                    results.GetInt32(2),
-                    results.GetInt32(3),
-                    results.GetDateTime(4),
-                    results.GetInt32(5),
-                    results.GetInt32(6),
-                    results.GetString(7),
-                    results.GetString(8),
-                    (DeviceType)results.GetInt32(9)
-                    ));
-            }
-
-            return logs;
-        }
+                if (read != null)
+                {
+                    read.Close();
+                }
+            }           
+        }        
 
         public AttendanceLog GetLastAttendanceLogByEnrollNumber(string enrollNumber)
         {
@@ -161,33 +145,39 @@ namespace ZKTeco.SyncBackendService.Connectors
 
             var command = new SQLiteCommand(_connection);
             command.CommandText = @"SELECT id, enroll_number, state, mode, log_date, work_code,
-                machine_id, project_id, ifnull(device_name,''), ifnull(device_type,0) FROM attendance_logs 
+                machine_id, project_id, ifnull(device_name,''), ifnull(device_type,0), log_status FROM attendance_logs 
                 WHERE enroll_number=@enroll_number ORDER BY log_date DESC LIMIT 1;";
             command.Parameters.Add(new SQLiteParameter("@enroll_number", enrollNumber));
-            var results = command.ExecuteReader();
-            if (results == null)
-            {
-                return log;
+            SQLiteDataReader reader = null;
+            try
+            {                
+                reader = command.ExecuteReader();
+                while (reader.Read())
+                {
+                    log = new AttendanceLog(
+                        reader.GetInt64(0),
+                        reader.GetString(1),
+                        reader.GetInt32(2),
+                        reader.GetInt32(3),
+                        reader.GetDateTime(4),
+                        reader.GetInt32(5),
+                        reader.GetInt32(6),
+                        reader.GetString(7),
+                        reader.GetString(8),
+                        (DeviceType)reader.GetInt32(9),
+                        (AttendanceStatus)reader.GetInt32(10)
+                        );
+                    break;
+                }
+                return log;                
             }
-
-            while (results.Read())
+            finally
             {
-                log = new AttendanceLog(
-                    results.GetInt64(0),
-                    results.GetString(1),
-                    results.GetInt32(2),
-                    results.GetInt32(3),
-                    results.GetDateTime(4),
-                    results.GetInt32(5),
-                    results.GetInt32(6),
-                    results.GetString(7),
-                    results.GetString(8),
-                    (DeviceType)results.GetInt32(9)
-                    );
-                break;
+                if (reader != null)
+                {
+                    reader.Close();
+                }
             }
-
-            return log;
         }
 
         public void AddAttendanceLog(AttendanceLog model)
@@ -222,7 +212,7 @@ namespace ZKTeco.SyncBackendService.Connectors
             }           
         }
 
-        public void SyncAttendanceLogSuccess(long id, bool ok = true)
+        public void UploadAttendanceLogSuccess(long id, bool ok = true)
         {
             if (_connection.State == System.Data.ConnectionState.Closed)
             {
@@ -233,7 +223,7 @@ namespace ZKTeco.SyncBackendService.Connectors
             command.Parameters.Add(new SQLiteParameter("@id", System.Data.DbType.Int64) { Value = id });
             command.Parameters.Add(new SQLiteParameter("@sync", System.Data.DbType.Int32) { Value = ok ? 1 : 0 });
             command.ExecuteNonQuery();
-        }
+        }        
 
         #endregion
 
@@ -274,136 +264,6 @@ namespace ZKTeco.SyncBackendService.Connectors
 
         #endregion
 
-        #region install database
-
-        public static void InstallSyncDatabase()
-        {
-            var dbPath = InitDbBuilder();
-            if (!File.Exists(dbPath))
-            {
-                var dir = Path.GetDirectoryName(dbPath);
-                if (!Directory.Exists(dir))
-                {
-                    Directory.CreateDirectory(dir);
-                }
-                SQLiteConnection.CreateFile(dbPath);
-            }
-
-            _builder = new SQLiteConnectionStringBuilder
-            {
-                DataSource = dbPath, Version = 3
-            };
-
-            CreateTableStructures(_builder);
-        } 
-        
-        private static void CreateTableStructures(SQLiteConnectionStringBuilder builder)
-        {            
-            var connection = new SQLiteConnection(builder.ConnectionString);
-            try
-            {
-                connection.Open();
-                var tx = connection.BeginTransaction();
-                
-                var command = new SQLiteCommand(connection);
-                CreateUserMapTable(command);
-                CreateQueueTable(command);
-                CreateAttendanceLogTable(command);
-                CreateAttendanceLogArchiveTable(command);
-
-                tx.Commit();
-            }
-            catch
-            {
-                throw;
-            }
-            finally
-            {
-                if (connection.State == System.Data.ConnectionState.Open)
-                {
-                    connection.Close();
-                }                
-            }            
-        }        
-
-        private static void CreateUserMapTable(SQLiteCommand command)
-        {
-            var sql = @"CREATE TABLE IF NOT EXISTS user_maps(
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            user_id        TEXT NOT NULL,
-                            enroll_number  TEXT NOT NULL,
-                            project_id     TEXT NOT NULL,
-                            create_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                            change_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                        );";
-            command.CommandText = sql;
-            command.CommandType = System.Data.CommandType.Text;
-            command.ExecuteNonQuery();
-        }
-
-        private static void CreateQueueTable(SQLiteCommand command)
-        {
-            var sql = @"CREATE TABLE IF NOT EXISTS queue(
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            refer_id INT NOT NULL,
-                            message TEXT NOT NULL,
-                            create_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                        );";
-            command.CommandText = sql;
-            command.CommandType = System.Data.CommandType.Text;
-            command.ExecuteNonQuery();
-        }
-
-        private static void CreateAttendanceLogTable(SQLiteCommand command)
-        {
-            var sql = @"CREATE TABLE IF NOT EXISTS attendance_logs(
-                            id INT PRIMARY KEY,
-                            machine_id INT NOT NULL,
-                            enroll_number  TEXT NOT NULL,
-                            project_id     TEXT NOT NULL,
-                            log_date       TIMESTAMP NOT NULL,
-                            mode           INT NOT NULL,
-                            state          INT NOT NULL,
-                            work_code      INT NOT NULL,
-                            device_name    TEXT NOT NULL,
-                            device_type    INT NOT NULL,
-                            log_status     INT NOT NULL,
-                            create_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                            change_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                            sync           NUMERIC  NOT NULL
-                        );";
-            command.CommandText = sql;
-            command.CommandType = System.Data.CommandType.Text;
-            command.ExecuteNonQuery();
-        }
-        /// <summary>
-        /// TODO: New feature not implemented.
-        /// </summary>
-        /// <param name="command"></param>
-        private static void CreateAttendanceLogArchiveTable(SQLiteCommand command)
-        {
-            var sql = @"CREATE TABLE IF NOT EXISTS attendance_logs_archive(
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            refer_no    INT NOT NULL,
-                            machine_id INT NOT NULL,
-                            enroll_number  TEXT NOT NULL,
-                            project_id     TEXT NOT NULL,
-                            log_date       TIMESTAMP NOT NULL,
-                            mode           INT NOT NULL,
-                            state          INT NOT NULL,
-                            work_code      INT NOT NULL, 
-                            device_name    TEXT NOT NULL,
-                            device_type    INT NOT NULL,
-                            log_status     INT NOT NULL,
-                            create_at      TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP
-                        );";
-            command.CommandText = sql;
-            command.CommandType = System.Data.CommandType.Text;
-            command.ExecuteNonQuery();
-        }
-
-        #endregion
-
         public void Dispose()
         {
             if (_connection != null && _connection.State == System.Data.ConnectionState.Open)
@@ -411,18 +271,6 @@ namespace ZKTeco.SyncBackendService.Connectors
                 _connection.Close();
                 _connection = null;
             }
-        }
-
-        private static string InitDbBuilder()
-        {
-            var dbPath = Path.Combine(ZKTecoConfig.AppRootFolder, "data", SYNCDB);
-            _builder = new SQLiteConnectionStringBuilder
-            {
-                DataSource = dbPath,
-                Version = 3
-            };
-            return dbPath;
-        }
-
+        }   
     }
 }

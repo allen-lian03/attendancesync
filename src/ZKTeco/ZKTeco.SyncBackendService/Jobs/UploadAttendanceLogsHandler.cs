@@ -8,19 +8,19 @@ using ZKTeco.SyncBackendService.Models;
 
 namespace ZKTeco.SyncBackendService.Jobs
 {
-    public class SyncToWebHandler : IJobHandler
+    public class UploadAttendanceLogsHandler : IJobHandler
     {
         private SqliteConnector _db;
         
-        private CTMSWebApiConnector _web;
+        private WebApiConnector _web;
 
         private LogWriter _logger;
 
-        public SyncToWebHandler(SqliteConnector connector)
+        public UploadAttendanceLogsHandler(SqliteConnector connector)
         {
             _db = connector;
-            _web = new CTMSWebApiConnector();
-            _logger = HostLogger.Get<SyncToWebHandler>();
+            _web = new WebApiConnector();
+            _logger = HostLogger.Get<UploadAttendanceLogsHandler>();
         }
 
         public void Handle(EventMessage message)
@@ -61,6 +61,8 @@ namespace ZKTeco.SyncBackendService.Jobs
                     _logger.ErrorFormat("Not support device type:{@attendance}", attendanceLog);
                     break;
             }
+
+            _db.Dequeue(message.Id);
         }
 
         private bool EnsureUniqueAttendanceLog(AttendanceLog log)
@@ -106,7 +108,7 @@ namespace ZKTeco.SyncBackendService.Jobs
                 attendanceLog.DeviceName).GetAwaiter().GetResult();
             if (ok)
             {
-                _db.SyncAttendanceLogSuccess(attendanceLog.Id);
+                _db.UploadAttendanceLogSuccess(attendanceLog.Id);
             }
         }
 
@@ -118,7 +120,7 @@ namespace ZKTeco.SyncBackendService.Jobs
                 .GetAwaiter().GetResult();
             if (ok)
             {
-                _db.SyncAttendanceLogSuccess(attendanceLog.Id);
+                _db.UploadAttendanceLogSuccess(attendanceLog.Id);
             }
         }
 

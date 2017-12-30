@@ -36,7 +36,7 @@ namespace ZKTeco.SyncBackendService.Models
         {
             Device = axCZKEM;
             _logger = HostLogger.Get<AxDeviceWrapper>();
-            _timer = new System.Timers.Timer(2000);
+            _timer = new System.Timers.Timer(1000);
             _timer.Elapsed += OnElapsed;
         }        
 

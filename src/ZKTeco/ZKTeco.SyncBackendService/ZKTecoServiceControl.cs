@@ -17,17 +17,20 @@ namespace ZKTeco.SyncBackendService
 
         private ManualResetEvent _signal;
 
-        private List<ZKTecoConnector> _connectors;
+        private List<DeviceConnector> _connectors;
 
-        private SqliteConnector _dbConnector;
+        private SqliteConnector _db;
+
+        private EventHub _hub;
 
         public LogWriter Logger { private get; set; }
 
-        public ZKTecoServiceControl()
+        public ZKTecoServiceControl(SqliteConnector connector, EventHub hub)
         {
-            _signal = new ManualResetEvent(false);
-            _dbConnector = new SqliteConnector();
+            _db = connector;
+            _hub = hub;
 
+            _signal = new ManualResetEvent(false);           
             Logger = HostLogger.Get<ZKTecoServiceControl>();
         }        
 
@@ -53,12 +56,14 @@ namespace ZKTeco.SyncBackendService
         }
 
         public bool Stop(HostControl host)
-        {
-            _signal.Set();
+        {            
             foreach (var connector in _connectors)
             {
                 connector.Stop();
             }
+
+            _db.Dispose();
+            _signal.Set();
             Logger.InfoFormat("ZKTecoServiceControl stops.");
             return true;
         }
@@ -68,14 +73,14 @@ namespace ZKTeco.SyncBackendService
             var count = ZKTecoConfig.Devices.Length;
 
             // Initialize this thread pool. 
-            _connectors = new List<ZKTecoConnector>(count);
+            _connectors = new List<DeviceConnector>(count);
             for (var i = 0; i < count; i++)
             {
                 var wrapper = new AxDeviceWrapper(
                     new CZKEMClass(),
                     ZKTecoConfig.Devices[i]);
 
-                _connectors.Add(new ZKTecoConnector(wrapper, _dbConnector));
+                _connectors.Add(new DeviceConnector(wrapper, new AttendanceQueue(_db, _hub)));
 
                 Logger.InfoFormat("Device name: {name}, Device ip:{ip}, port:{port}, type:{type}.", 
                     ZKTecoConfig.Devices[i].DeviceName, ZKTecoConfig.Devices[i].IP, 
@@ -86,7 +91,9 @@ namespace ZKTeco.SyncBackendService
         private void SubscribeJobHandlers()
         {
             Logger.InfoFormat("SubscribeJobHandlers starts.");
-            EventHub.Instance.Subscribe(EventType.SyncWeb, new SyncToWebHandler(_dbConnector));
+
+            _hub.Subscribe(EventType.SyncWeb, new UploadAttendanceLogsHandler(_db));
+            
             Logger.InfoFormat("SubscribeJobHandlers ends.");
         }
 

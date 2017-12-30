@@ -1,6 +1,4 @@
-﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -10,11 +8,11 @@ using ZKTeco.SyncBackendService.Models;
 
 namespace ZKTeco.SyncBackendService.Connectors
 {
-    public class CTMSWebApiConnector : ServiceBase
+    public class WebApiConnector : ServiceBase
     {
         private HttpClient _client;
 
-        public CTMSWebApiConnector()
+        public WebApiConnector()
         {
             _client = new HttpClient();
             _client.BaseAddress = new Uri(ZKTecoConfig.ApiRootUrl);

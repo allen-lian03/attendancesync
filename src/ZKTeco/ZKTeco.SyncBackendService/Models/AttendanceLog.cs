@@ -40,13 +40,15 @@ namespace ZKTeco.SyncBackendService.Models
         /// <param name="projectId"></param>
         /// <param name="deviceName"></param>
         /// <param name="type"></param>
+        /// <param name="status"></param>
         public AttendanceLog(long id, string enrollNumber, int state, int mode,
             DateTime logDate, int workCode, int machineNumber, string projectId,
-            string deviceName, DeviceType type) : this(enrollNumber, state, mode, workCode, machineNumber, deviceName, type)
+            string deviceName, DeviceType type, AttendanceStatus status) : this(enrollNumber, state, mode, workCode, machineNumber, deviceName, type)
         {
             Id = id;            
             LogDate = logDate;
             ProjectId = projectId;
+            LogStatus = status;
         }
 
         public long Id { get; private set; }

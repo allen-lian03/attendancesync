@@ -1,9 +1,13 @@
-﻿using Serilog;
-using System;
+﻿using Quartz;
+using Serilog;
 using System.Diagnostics;
 using System.IO;
 using Topshelf;
-using ZKTeco.SyncBackendService.Connectors;
+using Topshelf.Ninject;
+using Topshelf.Quartz;
+using Topshelf.Quartz.Ninject;
+using ZKTeco.SyncBackendService.Jobs;
+using ZKTeco.SyncBackendService.Utils;
 
 namespace ZKTeco.SyncBackendService
 {
@@ -14,13 +18,15 @@ namespace ZKTeco.SyncBackendService
             var logger = new LoggerConfiguration()
                 .ReadFrom.AppSettings()
                 .WriteTo.RollingFile(Path.Combine(ZKTecoConfig.AppRootFolder, "logs", "info{Date}.log"), retainedFileCountLimit: 10)
-                .CreateLogger();
+                .CreateLogger();           
 
             HostFactory.Run(cfg =>
             {             
                 cfg.UseSerilog(logger);
 
-                cfg.AfterInstall(_ =>
+                cfg.UseNinject(new ZKTecoModule());
+
+                cfg.BeforeInstall(_ =>
                 {
                     // When building this project, copy libs/*.dll to output directory.
                     logger.Information("RegisterDLLs starts...");
@@ -34,7 +40,9 @@ namespace ZKTeco.SyncBackendService
                     logger.Information("RegisterDLLs ends.");
 
                     logger.Information("InstallSyncDatabase starts...");
-                    SqliteConnector.InstallSyncDatabase();
+
+                    DbInstaller.Install();
+
                     logger.Information("InstallSyncDatabase ends.");
                 });
 
@@ -52,10 +60,27 @@ namespace ZKTeco.SyncBackendService
                 });
 
                 cfg.Service<ZKTecoServiceControl>(x =>
-                {                   
-                    x.ConstructUsing(_ => new ZKTecoServiceControl());
+                {
+                    x.ConstructUsingNinject();
                     x.WhenStarted((s, h) => s.Start(h));
                     x.WhenStopped((s, h) => s.Stop(h));
+
+                    // retry failed attendance logs.
+                    x.UseQuartzNinject();
+                    x.ScheduleQuartzJob(q =>
+                    {
+                        q.WithJob(() =>
+                        {
+                            return JobBuilder.Create<ResendAttendancesJob>().WithIdentity("retryJob", "syncbackend").Build();
+                        }).AddTrigger(() =>
+                        {
+                            return TriggerBuilder.Create()
+                            .WithIdentity("retryTrigger", "syncbackend")
+                            .StartNow()
+                            .WithSimpleSchedule(b => b.WithIntervalInHours(1).RepeatForever())
+                            .Build();
+                        });
+                    });                    
                 });
 
                 cfg.RunAsLocalService();

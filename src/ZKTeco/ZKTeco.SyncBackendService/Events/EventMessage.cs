@@ -2,16 +2,15 @@
 {
     public enum EventType
     {
-        SyncWeb = 0,
-        Archieve,
+        SyncWeb = 0
     }
 
     public class EventMessage
     {
-        public EventMessage(EventType type, long key, string content)
+        public EventMessage(EventType type, string id, long referenceId, string content)
         {
             Type = type;
-            Key = key;
+            ReferenceId = referenceId;
             Content = content;
         }
 
@@ -19,6 +18,8 @@
 
         public string Content { get; set; }
 
-        public long Key { get; set; }
+        public long ReferenceId { get; set; }
+
+        public string Id { get; set; }
     }
 }
