@@ -20,7 +20,7 @@ namespace ZKTeco.SyncBackendService.Models
         {
             var message = JsonConvert.SerializeObject(model);
             var id = _db.Enqueue(model.Id, message);
-            _hub.PublishAsync(new EventMessage(EventType.SyncWeb, id, model.Id, message));
+            _hub.PublishAsync(new EventMessage(EventType.SyncWeb, id, model.Id, message)).GetAwaiter().GetResult();
         }        
     }
 }

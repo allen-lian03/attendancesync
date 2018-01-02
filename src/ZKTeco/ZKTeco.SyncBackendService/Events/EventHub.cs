@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Timers;
 using Topshelf.Logging;
 using ZKTeco.SyncBackendService.Bases;
@@ -12,15 +13,29 @@ namespace ZKTeco.SyncBackendService.Events
     /// </summary>
     public class EventHub
     {
+        /// <summary>
+        /// Inner subscribers.
+        /// </summary>
         private ConcurrentDictionary<EventType, List<IJobHandler>> _subscribers;
-
+        /// <summary>
+        /// Inner message queue.
+        /// </summary>
         private ConcurrentQueue<EventMessage> _innerHub;
-
-        private static readonly EventHub _instance = new EventHub();
-
+             
+        /// <summary>
+        /// Inner timer is used for checking queue.
+        /// </summary>
         private System.Timers.Timer _timer;
 
+        /// <summary>
+        /// logger
+        /// </summary>
         private LogWriter _logger;
+
+        /// <summary>
+        /// running flag, 0: not run, 1: running.
+        /// </summary>
+        private int _running = 0;
 
         public EventHub()
         {
@@ -29,24 +44,20 @@ namespace ZKTeco.SyncBackendService.Events
 
             _timer = new System.Timers.Timer(5000);
             _timer.Elapsed += OnElapsed;
+            _timer.Start();
 
             _logger = HostLogger.Get<EventHub>();
-        }
+        }        
 
-        public static EventHub Instance
+        public Task PublishAsync(EventMessage message)
         {
-            get { return _instance; }
-        }
-
-        public void PublishAsync(EventMessage message)
-        {
-            ThreadPool.QueueUserWorkItem(w =>
+            return Task.Run(() =>
             {
                 if (message != null)
                 {
                     _innerHub.Enqueue(message);
                 }
-            });            
+            });                       
         }
 
         public void Subscribe(EventType type, IJobHandler handler)
@@ -65,14 +76,20 @@ namespace ZKTeco.SyncBackendService.Events
         private void OnElapsed(object sender, ElapsedEventArgs e)
         {
             _logger.Info("OnElapsed runs.");
-            var target = (System.Timers.Timer)sender;
-            if (target == null || target.Enabled == false)
+            if (Interlocked.CompareExchange(ref _running, 1, 0) != 0)
             {
+                _logger.InfoFormat("OnElapsed is running. Current Thread[{thread}]", Thread.CurrentThread.ManagedThreadId);
+                return;
+            }
+
+            var target = (System.Timers.Timer)sender;
+            if (target.Enabled == false)
+            {
+                _logger.Info("Timer has been disabled.");
                 return;
             }
 
             _logger.Info("OnElapsed:timer stops.");
-
             target.Stop();
 
             EventMessage msg;
@@ -91,8 +108,9 @@ namespace ZKTeco.SyncBackendService.Events
                 }
             }
 
-            target.Start();
             _logger.Info("OnElapsed:timer starts again.");
+            target.Start();
+            Interlocked.CompareExchange(ref _running, 0, 1);            
         }
     }
 }

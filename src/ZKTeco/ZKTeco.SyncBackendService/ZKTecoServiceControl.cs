@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 using Topshelf;
 using Topshelf.Logging;
 using zkemkeeper;
@@ -99,7 +100,7 @@ namespace ZKTeco.SyncBackendService
 
         private void StartTaskThread()
         {
-            ThreadPool.QueueUserWorkItem(_ =>
+            Task.Run(() =>
             {
                 Logger.InfoFormat("StartTaskThread starts.");
                 foreach (var connector in _connectors)
@@ -108,7 +109,7 @@ namespace ZKTeco.SyncBackendService
                 }
                 _signal.WaitOne();
                 Logger.InfoFormat("StartTaskThread ends.");
-            });                           
+            });
         }        
     }
 }
